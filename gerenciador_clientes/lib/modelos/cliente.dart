@@ -17,7 +17,7 @@ class Cliente {
 
 class GerenciadorClientes {
   // Variável estática que guarda a única cópia desta classe
-  static final GerenciadorClientes _instancia = GerenciadorClientes.interno();
+  static final GerenciadorClientes _instancia = GerenciadorClientes._interno();
   // impede a criação de novas instância
   GerenciadorClientes._interno();
   // sempre retorna a instância existente
@@ -25,11 +25,13 @@ class GerenciadorClientes {
   // lista <ul> que armazena todos os clientes cadastrados
   final List<Cliente> _clientes = [];
   // para acessar a lista de clientes (retorna uma cópia imutável)
-  List<Cliente> get clientes => List.unmodifiable(_clientes)
+  List<Cliente> get clientes => List.unmodifiable(_clientes);
   // Tentar cadastrar um cliente novo.
-  bool cadastro(Cliente cliente){
+  bool cadastrar(Cliente cliente) {
     // vamos checar se já existe um email cadastrado
-    if(_clientes.any((c) => c.email.toLowerCase() == cliente.email.toLowerCase())){
+    if (_clientes.any(
+      (c) => c.email.toLowerCase() == cliente.email.toLowerCase(),
+    )) {
       print('Erro: email ${cliente.email} já cadastrado');
       return false; // Cadastro falhou
     }
@@ -37,5 +39,13 @@ class GerenciadorClientes {
     print('Novo cliente cadastrado: ${cliente.nome}');
     return true; //Cadastroooooouuu
   }
-  
+
+  Cliente? login(String email, String senha) {
+    return _clientes.firstWhere(
+      // é uma função anônima
+      // o c representa cada elemento(cada cliente) da lista _cliente
+      (c) => c.email.toLowerCase() == email.toLowerCase() && c.senha == senha,
+      orElse: () => Null as Cliente, // retorna nulo se não encontrar os dados
+    );
+  }
 }
