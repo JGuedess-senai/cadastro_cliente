@@ -1,13 +1,21 @@
+// lib/main.dart (INÍCIO ATUALIZADO)
 import 'package:flutter/material.dart';
-import 'package:gerenciador_clientes/modelos/cliente.dart'; // importa nosso modelo de BD
+import 'modelos/cliente.dart'; // Importa o modelo.
+import 'package:firebase_core/firebase_core.dart'; // NOVO: Para iniciar o Firebase.
 
-// instanciando nosso BD
-final GerenciadorClientes gerenciadorClientes = GerenciadorClientes();
+// NOVO: Importe o arquivo de opções do seu projeto gerado pelo FlutterFire CLI
+import 'firebase_options.dart';
 
-void main() {
-  gerenciadorClientes.cadastrar(
-    Cliente(nome: 'Admin', email: 'admin@email.com', senha: 'admin123'),
-  );
+// NOVO: Substituímos o GerenciadorClientes pelo ServicoClientes.
+final ServicoClientes servicoClientes = ServicoClientes();
+
+// A função main agora é assíncrona para inicializar o Firebase.
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // Garante que o Flutter está pronto.
+
+  // Inicializa o Firebase (OBRIGATÓRIO).
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   runApp(const AplicativoClientes());
 }
 
@@ -38,72 +46,78 @@ class TelaPrincipal extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Área do Cliente'),
-        automaticallyImplyLeading: false, // Remove a seta de voltar.
+        automaticallyImplyLeading: false,
         actions: [
-          // Botão de Sair (Logout).
           IconButton(
             icon: const Icon(Icons.logout),
+            tooltip: 'Sair do Sistema',
             onPressed: () {
-              // Navegação: Limpa a pilha e volta para a Tela de Login.
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (context) => const TelaLogin()),
-                (Route<dynamic> route) =>
-                    false, // Condição que remove todas as rotas.
+                (Route<dynamic> route) => false,
               );
             },
-            tooltip: 'Sair do Sistema',
           ),
         ],
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.check_circle_outline,
-                size: 80,
-                color: Colors.indigo,
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.check_circle_outline,
+                size: 80, color: Colors.indigo),
+            const SizedBox(height: 20),
+            Text(
+              'Login de ${cliente.nome} realizado!',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text('E-mail: ${cliente.email}',
+                style: const TextStyle(fontSize: 18, color: Colors.grey)),
+            const SizedBox(height: 40),
+            const Text(
+              'Clientes cadastrados (BD Firebase):',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+
+            // ✅ StreamBuilder CORRIGIDO
+            Expanded(
+              child: StreamBuilder<List<Cliente>>(
+                stream: servicoClientes.clientesStream,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return const Center(
+                        child: Text('Erro ao carregar clientes.'));
+                  }
+
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final clientes = snapshot.data ?? [];
+
+                  if (clientes.isEmpty) {
+                    return const Center(child: Text('Nenhum cliente cadastrado.'));
+                  }
+
+                  return ListView.builder(
+                    itemCount: clientes.length,
+                    itemBuilder: (context, index) {
+                      final c = clientes[index];
+                      return ListTile(
+                        leading: const Icon(Icons.person),
+                        title: Text(c.nome),
+                        subtitle: Text(c.email),
+                      );
+                    },
+                  );
+                },
               ),
-              const SizedBox(height: 20),
-              Text(
-                'Login de ${cliente.nome} realizado!',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'E-mail: ${cliente.email}',
-                style: const TextStyle(fontSize: 18, color: Colors.grey),
-              ),
-              const SizedBox(height: 40),
-              // Título da lista de clientes
-              const Text(
-                'Clientes cadastrados (BD Simulado):',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              // Lista de Clientes Cadastrados
-              Expanded(
-                // Usa o getter 'clientes' do nosso gerenciador.
-                child: ListView.builder(
-                  itemCount: gerenciadorClientes.clientes.length,
-                  itemBuilder: (context, index) {
-                    final c = gerenciadorClientes.clientes[index];
-                    return ListTile(
-                      leading: const Icon(Icons.person),
-                      title: Text(c.nome),
-                      subtitle: Text(c.email),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -126,8 +140,10 @@ class _EstadoTelaCadastro extends State<TelaCadastro> {
   final _senhaController = TextEditingController();
   String _mensagemErro = '';
 
-  void _fazerCadastro() {
+  void _fazerCadastro() async {
     if (_chaveForm.currentState!.validate()) {
+      setState(() => _mensagemErro = '');
+
       // Se a validação dos campos for OK...
       final novoCliente = Cliente(
         nome: _nomeController.text.trim(),
@@ -136,7 +152,7 @@ class _EstadoTelaCadastro extends State<TelaCadastro> {
       );
 
       // Tenta cadastrar no BD simulado.
-      final sucesso = gerenciadorClientes.cadastrar(novoCliente);
+      final sucesso = await servicoClientes.cadastrar(novoCliente);
 
       if (sucesso) {
         // Se sucesso: exibe uma notificação e volta para a tela de Login.
@@ -262,7 +278,7 @@ class _EstadoTelaLogin extends State<TelaLogin> {
   final _senhaController = TextEditingController();
   String _mensagemErro = '';
 
-  void _fazerLogin() {
+  void _fazerLogin() async {
     // 1. Validação dos campos
     if (_chaveForm.currentState!.validate()) {
       setState(() => _mensagemErro = ''); // Limpa erro.
@@ -271,7 +287,7 @@ class _EstadoTelaLogin extends State<TelaLogin> {
       final senha = _senhaController.text;
 
       // 2. Chama o método 'login' do nosso BD simulado.
-      final clienteLogado = gerenciadorClientes.login(email, senha);
+      final clienteLogado = await servicoClientes.login(email, senha); // <-- AWAIT AQUI!
 
       if (clienteLogado != null) {
         // 3. Login de sucesso: Navega para a tela principal (substituindo o Login).
